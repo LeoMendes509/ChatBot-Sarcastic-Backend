@@ -1,6 +1,7 @@
 package com.leonardo.chatbot.test;
 
 import com.leonardo.chatbot.model.User;
+import com.leonardo.chatbot.service.ChatService;
 import com.leonardo.chatbot.service.UserService;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -9,7 +10,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.io.Console;
-import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.Scanner;
 
@@ -17,27 +17,34 @@ import java.util.Scanner;
 public class ConsoleUserTest {
 
     public static void main(String[] args) {
-        // Initialize Spring Context
+        // 🔹 Inicializa Spring Boot e obtém os beans
         ApplicationContext context = SpringApplication.run(ConsoleUserTest.class, args);
-
         UserService userService = context.getBean(UserService.class);
+        ChatService chatService = context.getBean(ChatService.class);
+
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-
         Scanner scanner = new Scanner(System.in);
-        Console console = System.console(); // for password masking
-        boolean running = true;
+        Console console = System.console();
 
+        boolean running = true;
+        String loggedToken = null;
+        User loggedUser = null;
+
+        // 🔹 Loop principal do menu
         while (running) {
-            System.out.println("\nChoose an option:");
-            System.out.println("1 - Register User");
-            System.out.println("2 - Login");
-            System.out.println("3 - Delete User");
-            System.out.println("4 - Exit");
+            System.out.println("\n==============================");
+            System.out.println("🤖 Chatbot Sarcastic - Menu");
+            System.out.println("==============================");
+            System.out.println("1 - Register (Criar usuário)");
+            System.out.println("2 - Login (Entrar)");
+            System.out.println("3 - Chat (Bater papo com sarcasmo 😏)");
+            System.out.println("4 - Delete User (Apagar conta)");
+            System.out.println("5 - Exit (Sair)");
             System.out.print("> ");
-            String option = scanner.nextLine();
+            String option = scanner.nextLine().trim();
 
             switch (option) {
-                case "1":
+                case "1": // REGISTER
                     System.out.print("Enter username: ");
                     String username = scanner.nextLine();
 
@@ -48,8 +55,7 @@ public class ConsoleUserTest {
 
                     String password;
                     if (console != null) {
-                        char[] pwdArray = console.readPassword("Enter password: ");
-                        password = new String(pwdArray);
+                        password = new String(console.readPassword("Enter password: "));
                     } else {
                         System.out.print("Enter password: ");
                         password = scanner.nextLine();
@@ -61,30 +67,38 @@ public class ConsoleUserTest {
                     System.out.print("Enter email: ");
                     String email = scanner.nextLine();
 
-                    System.out.print("Enter age: ");
-                    int age = Integer.parseInt(scanner.nextLine());
+                    if (userService.existsByEmail(email)) {
+                        System.out.println("❌ Email already registered!");
+                        break;
+                    }
 
-                    // Create new user with all required fields
+                    System.out.print("Enter age: ");
+                    int age;
+                    try {
+                        age = Integer.parseInt(scanner.nextLine());
+                    } catch (NumberFormatException e) {
+                        System.out.println("⚠️ Invalid age. Registration canceled.");
+                        break;
+                    }
+
                     User newUser = new User();
                     newUser.setUsername(username);
-                    newUser.setPasswordHash(password); // will be encoded in UserService
+                    newUser.setPasswordHash(password);
                     newUser.setName(name);
                     newUser.setEmail(email);
                     newUser.setAge(age);
-                    newUser.setCreatedAt(LocalDateTime.now());
 
                     userService.createUser(newUser);
-                    System.out.println("✅ User successfully registered!");
+                    System.out.println("✅ User registered successfully! You can login now.");
                     break;
 
-                case "2":
+                case "2": // LOGIN
                     System.out.print("Enter username: ");
                     String loginUsername = scanner.nextLine();
 
                     String loginPassword;
                     if (console != null) {
-                        char[] loginPwdArray = console.readPassword("Enter password: ");
-                        loginPassword = new String(loginPwdArray);
+                        loginPassword = new String(console.readPassword("Enter password: "));
                     } else {
                         System.out.print("Enter password: ");
                         loginPassword = scanner.nextLine();
@@ -94,7 +108,9 @@ public class ConsoleUserTest {
                     if (userOpt.isPresent()) {
                         User user = userOpt.get();
                         if (passwordEncoder.matches(loginPassword, user.getPasswordHash())) {
-                            System.out.println("✅ Login successful!");
+                            loggedToken = userService.login(loginUsername, loginPassword);
+                            loggedUser = user;
+                            System.out.println("✅ Login successful! Welcome, " + user.getName() + " 😎");
                         } else {
                             System.out.println("❌ Invalid password.");
                         }
@@ -103,22 +119,48 @@ public class ConsoleUserTest {
                     }
                     break;
 
-                case "3":
-                    System.out.print("Enter username to delete: ");
-                    String deleteUsername = scanner.nextLine();
+                case "3": // CHAT
+                    if (loggedToken == null || loggedUser == null) {
+                        System.out.println("⚠️ You must login first!");
+                        break;
+                    }
 
-                    Optional<User> deleteOpt = userService.getUserByUserName(deleteUsername);
-                    if (deleteOpt.isPresent()) {
-                        userService.deleteUser(deleteOpt.get());
-                        System.out.println("✅ User deleted successfully!");
-                    } else {
-                        System.out.println("❌ User not found.");
+                    // Escolha do idioma antes do chat
+                    String language = null;
+                    while (true) {
+                        System.out.print("Choose language / Escolha idioma (pt/en): ");
+                        language = scanner.nextLine().trim().toLowerCase();
+                        if (language.equals("pt") || language.equals("en")) break;
+                        System.out.println("⚠️ Invalid language! Use 'pt' or 'en'.");
+                    }
+
+                    System.out.println("💬 Chat started! Type 'exit' to leave / digite 'exit' para sair.");
+                    while (true) {
+                        System.out.print("> ");
+                        String message = scanner.nextLine();
+                        if (message.equalsIgnoreCase("exit")) break;
+
+                        // Enviando o idioma escolhido para o ChatService
+                        String response = chatService.getChatbotResponse(message, language);
+                        System.out.println("🤖 " + response);
                     }
                     break;
 
-                case "4":
+                case "4": // DELETE USER
+                    if (loggedUser == null) {
+                        System.out.println("⚠️ You must login first to delete your account!");
+                        break;
+                    }
+
+                    userService.deleteUser(loggedUser);
+                    System.out.println("✅ User deleted successfully!");
+                    loggedUser = null;
+                    loggedToken = null;
+                    break;
+
+                case "5": // EXIT
                     running = false;
-                    System.out.println("👋 Exiting...");
+                    System.out.println("👋 Goodbye!");
                     break;
 
                 default:
@@ -129,5 +171,3 @@ public class ConsoleUserTest {
         scanner.close();
     }
 }
-
-

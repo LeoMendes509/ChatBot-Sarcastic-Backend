@@ -1,7 +1,6 @@
 package com.leonardo.chatbot.model;
 
 import jakarta.persistence.*;
-
 import java.time.LocalDateTime;
 
 @Entity
@@ -12,15 +11,7 @@ public class Question {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
 
-    public User getUser() {
-        return user;
-    }
-
-    public void setUser(User user) {
-        this.user = user;
-    }
-
-    @Column(name = "question_next", nullable = false)
+    @Column(name = "question_text", nullable = false)
     private String text;
 
     @Column(name = "created_at")
@@ -32,16 +23,8 @@ public class Question {
 
     public Question() {}
 
-    public Question (String text , LocalDateTime dateTime ) {
+    public Question(String text, LocalDateTime dateTime) {
         this.text = text;
-        this.dateTime = dateTime;
-    }
-
-    public void setText(String text) {
-        this.text = text;
-    }
-
-    public void setDateTime(LocalDateTime dateTime) {
         this.dateTime = dateTime;
     }
 
@@ -53,7 +36,21 @@ public class Question {
         return text;
     }
 
+    public void setText(String text) {
+        this.text = text;
+    }
+
     public LocalDateTime getDateTime() {
         return dateTime;
+    }
+
+    public void setDateTime(LocalDateTime dateTime) {
+        this.dateTime = dateTime;
+    }
+
+    public User getUser() { return user; }
+
+    public void setUser(User user) {
+        this.user = user;
     }
 }

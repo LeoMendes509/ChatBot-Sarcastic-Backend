@@ -17,22 +17,6 @@ public class User {
     @Column(nullable = false)
     private String name;
 
-    public Integer getAge() {
-        return age;
-    }
-
-    public void setAge(Integer age) {
-        this.age = age;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
     @Column(nullable = false)
     private Integer age;
 
@@ -52,14 +36,33 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Question> questions;
 
-    // Getters e setters
+    @Column(name = "email_verified")
+    private boolean emailVerified = true; // já deixa como verificado
 
-    public Long getId() {
-        return id;
-    }
+    @Column(name = "email_verification_token", length = 255)
+    private String emailVerificationToken;
+
+    // Getters e Setters
+    public Long getId() { return id; }
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Integer getAge() {
+        return age;
+    }
+
+    public void setAge(Integer age) {
+        this.age = age;
     }
 
     public String getUsername() {
@@ -90,14 +93,22 @@ public class User {
         return createdAt;
     }
 
-    public List<Question> getQuestions() {
-        return questions;
-    }
-
+    public List<Question> getQuestions() { return questions; }
     public void setQuestions(List<Question> questions) {
         this.questions = questions;
     }
 
-    public void setCreatedAt(LocalDateTime now) {
+    public boolean isEmailVerified() { return emailVerified; }
+    public void setEmailVerified(boolean emailVerified) {
+        this.emailVerified = emailVerified;
+    }
+
+    public String getEmailVerificationToken() {
+        return emailVerificationToken;
+    }
+
+    public void setEmailVerificationToken(String emailVerificationToken) {
+        this.emailVerificationToken = emailVerificationToken;
     }
 }
+
