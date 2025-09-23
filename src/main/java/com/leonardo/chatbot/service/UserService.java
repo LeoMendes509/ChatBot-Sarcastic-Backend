@@ -8,7 +8,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class UserService {
@@ -26,7 +25,7 @@ public class UserService {
         this.securityJWT = securityJWT;
     }
 
-    // Cria usuário SEM envio de email
+    // Cria usuário e codifica a senha
     public User createUser(User user) {
         if (existsByEmail(user.getEmail())) {
             throw new IllegalArgumentException("Email already registered.");
@@ -35,10 +34,11 @@ public class UserService {
             throw new IllegalArgumentException("Username already registered.");
         }
 
-        // Token e verificação de email removidos (não usamos mais)
+        // Centraliza codificação de senha aqui
+        user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
+
         user.setEmailVerified(true); // já deixa como verificado
         user.setEmailVerificationToken(null);
-        user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
 
         return userRepository.save(user);
     }
@@ -54,43 +54,36 @@ public class UserService {
                 throw new IllegalArgumentException("Incorrect password.");
             }
 
-            // Como não temos verificação por e-mail, não precisa mais checar aqui
             return securityJWT.generateToken(username);
         }
         throw new IllegalArgumentException("User not found.");
     }
 
-    // Busca usuário por ID
+    // Outros métodos permanecem iguais
     public Optional<User> getUserById(Long id) {
         return userRepository.findById(id);
     }
 
-    // Busca usuário por username
     public Optional<User> getUserByUserName(String username) {
         return userRepository.findByUsername(username);
     }
 
-    // Salva usuário
     public User saveUser(User user) {
         return userRepository.save(user);
     }
 
-    // Deleta usuário
     public void deleteUser(User user) {
         userRepository.delete(user);
     }
 
-    // Verifica se username já existe
     public boolean existsByUsername(String username) {
         return userRepository.findByUsername(username).isPresent();
     }
 
-    // Verifica se email já existe
     public boolean existsByEmail(String email) {
         return userRepository.findByEmail(email).isPresent();
     }
 
-    // Extrai usuário a partir do token JWT
     public User getUserFromToken(String token) {
         String username = securityJWT.getUsernameFromToken(token);
 

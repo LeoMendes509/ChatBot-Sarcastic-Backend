@@ -2,35 +2,30 @@ package com.leonardo.chatbot.test;
 
 import com.leonardo.chatbot.model.User;
 import com.leonardo.chatbot.service.ChatService;
+import com.leonardo.chatbot.service.ChatHistoryService;
 import com.leonardo.chatbot.service.UserService;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ApplicationContext;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.io.Console;
-import java.util.Optional;
 import java.util.Scanner;
 
 @SpringBootApplication(scanBasePackages = "com.leonardo.chatbot")
 public class ConsoleUserTest {
 
     public static void main(String[] args) {
-        // 🔹 Inicializa Spring Boot e obtém os beans
         ApplicationContext context = SpringApplication.run(ConsoleUserTest.class, args);
         UserService userService = context.getBean(UserService.class);
         ChatService chatService = context.getBean(ChatService.class);
+        ChatHistoryService chatHistoryService = context.getBean(ChatHistoryService.class);
 
-        PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
         Scanner scanner = new Scanner(System.in);
         Console console = System.console();
 
         boolean running = true;
-        String loggedToken = null;
         User loggedUser = null;
 
-        // 🔹 Loop principal do menu
         while (running) {
             System.out.println("\n==============================");
             System.out.println("🤖 Chatbot Sarcastic - Menu");
@@ -39,7 +34,9 @@ public class ConsoleUserTest {
             System.out.println("2 - Login (Entrar)");
             System.out.println("3 - Chat (Bater papo com sarcasmo 😏)");
             System.out.println("4 - Delete User (Apagar conta)");
-            System.out.println("5 - Exit (Sair)");
+            System.out.println("5 - Delete Chat Session (Apagar sessão de chat)");
+            System.out.println("6 - Delete All Chat Sessions (Apagar todas as sessões)");
+            System.out.println("7 - Exit (Sair)");
             System.out.print("> ");
             String option = scanner.nextLine().trim();
 
@@ -47,7 +44,6 @@ public class ConsoleUserTest {
                 case "1": // REGISTER
                     System.out.print("Enter username: ");
                     String username = scanner.nextLine();
-
                     if (userService.existsByUsername(username)) {
                         System.out.println("❌ Username already exists!");
                         break;
@@ -66,7 +62,6 @@ public class ConsoleUserTest {
 
                     System.out.print("Enter email: ");
                     String email = scanner.nextLine();
-
                     if (userService.existsByEmail(email)) {
                         System.out.println("❌ Email already registered!");
                         break;
@@ -83,10 +78,11 @@ public class ConsoleUserTest {
 
                     User newUser = new User();
                     newUser.setUsername(username);
-                    newUser.setPasswordHash(password);
+                    newUser.setPasswordHash(password); // encode será feito no UserService
                     newUser.setName(name);
                     newUser.setEmail(email);
                     newUser.setAge(age);
+                    newUser.setEmailVerified(true);
 
                     userService.createUser(newUser);
                     System.out.println("✅ User registered successfully! You can login now.");
@@ -95,7 +91,6 @@ public class ConsoleUserTest {
                 case "2": // LOGIN
                     System.out.print("Enter username: ");
                     String loginUsername = scanner.nextLine();
-
                     String loginPassword;
                     if (console != null) {
                         loginPassword = new String(console.readPassword("Enter password: "));
@@ -104,29 +99,22 @@ public class ConsoleUserTest {
                         loginPassword = scanner.nextLine();
                     }
 
-                    Optional<User> userOpt = userService.getUserByUserName(loginUsername);
-                    if (userOpt.isPresent()) {
-                        User user = userOpt.get();
-                        if (passwordEncoder.matches(loginPassword, user.getPasswordHash())) {
-                            loggedToken = userService.login(loginUsername, loginPassword);
-                            loggedUser = user;
-                            System.out.println("✅ Login successful! Welcome, " + user.getName() + " 😎");
-                        } else {
-                            System.out.println("❌ Invalid password.");
-                        }
-                    } else {
-                        System.out.println("❌ User not found.");
+                    try {
+                        String token = userService.login(loginUsername, loginPassword);
+                        loggedUser = userService.getUserByUserName(loginUsername).get();
+                        System.out.println("✅ Login successful! Welcome, " + loggedUser.getName() + " 😎");
+                    } catch (IllegalArgumentException e) {
+                        System.out.println("❌ " + e.getMessage());
                     }
                     break;
 
                 case "3": // CHAT
-                    if (loggedToken == null || loggedUser == null) {
+                    if (loggedUser == null) {
                         System.out.println("⚠️ You must login first!");
                         break;
                     }
 
-                    // Escolha do idioma antes do chat
-                    String language = null;
+                    String language;
                     while (true) {
                         System.out.print("Choose language / Escolha idioma (pt/en): ");
                         language = scanner.nextLine().trim().toLowerCase();
@@ -134,14 +122,30 @@ public class ConsoleUserTest {
                         System.out.println("⚠️ Invalid language! Use 'pt' or 'en'.");
                     }
 
+                    System.out.print("Enter session name / Nome da sessão: ");
+                    String sessionName = scanner.nextLine().trim();
+                    if (sessionName.isBlank()) sessionName = "New Chat";
+
                     System.out.println("💬 Chat started! Type 'exit' to leave / digite 'exit' para sair.");
                     while (true) {
                         System.out.print("> ");
                         String message = scanner.nextLine();
-                        if (message.equalsIgnoreCase("exit")) break;
+                        if (message.equalsIgnoreCase("exit")) {
+                            // Pergunta se quer salvar histórico
+                            System.out.print(language.equals("pt") ?
+                                    "Deseja salvar esta conversa? (s/n): " :
+                                    "Do you want to save this conversation? (y/n): ");
+                            String save = scanner.nextLine().trim().toLowerCase();
+                            if (save.equals("s") || save.equals("y")) {
+                                System.out.println(language.equals("pt") ?
+                                        "✅ Conversa salva!" : "✅ Conversation saved!");
+                                // Histórico já foi salvo automaticamente pelo ChatService
+                            }
+                            break;
+                        }
 
-                        // Enviando o idioma escolhido para o ChatService
-                        String response = chatService.getChatbotResponse(message, language);
+                        // Chama o ChatService para gerar resposta e salvar automaticamente
+                        String response = chatService.getChatbotResponse(loggedUser, message, language, sessionName);
                         System.out.println("🤖 " + response);
                     }
                     break;
@@ -151,14 +155,36 @@ public class ConsoleUserTest {
                         System.out.println("⚠️ You must login first to delete your account!");
                         break;
                     }
-
                     userService.deleteUser(loggedUser);
                     System.out.println("✅ User deleted successfully!");
                     loggedUser = null;
-                    loggedToken = null;
                     break;
 
-                case "5": // EXIT
+                case "5": // DELETE CHAT SESSION
+                    if (loggedUser == null) {
+                        System.out.println("⚠️ You must login first!");
+                        break;
+                    }
+                    System.out.print("Enter session name to delete: ");
+                    String delSession = scanner.nextLine().trim();
+                    if (!delSession.isBlank()) {
+                        chatHistoryService.deleteSession(loggedUser, delSession);
+                        System.out.println("✅ Session '" + delSession + "' deleted successfully!");
+                    } else {
+                        System.out.println("⚠️ Session name cannot be blank.");
+                    }
+                    break;
+
+                case "6": // DELETE ALL CHAT SESSIONS
+                    if (loggedUser == null) {
+                        System.out.println("⚠️ You must login first!");
+                        break;
+                    }
+                    chatHistoryService.deleteAllSessions(loggedUser);
+                    System.out.println("✅ All chat sessions deleted successfully!");
+                    break;
+
+                case "7": // EXIT
                     running = false;
                     System.out.println("👋 Goodbye!");
                     break;

@@ -1,9 +1,11 @@
 package com.leonardo.chatbot.service;
 
 import com.leonardo.chatbot.config.OpenAIConfig;
+import com.leonardo.chatbot.model.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
@@ -13,9 +15,9 @@ public class ChatService {
 
     private final OpenAIConfig openAIConfig;
     private final RestTemplate restTemplate;
+    private final ChatHistoryService historyService;
     private final Random random = new Random();
 
-    // Array com +100 emojis
     private static final String[] EMOJIS = {
             "😂","🤣","😏","🙄","😜","🤪","😎","🤡","🤖","👻","💀","🔥","⚡",
             "🍕","🍔","🌮","🥦","🍩","🍷","☕","🍺","🥴","🥳","🤯","😬","😳",
@@ -29,9 +31,10 @@ public class ChatService {
     };
 
     @Autowired
-    public ChatService(OpenAIConfig openAIConfig, RestTemplate restTemplate) {
+    public ChatService(OpenAIConfig openAIConfig, RestTemplate restTemplate, ChatHistoryService historyService) {
         this.openAIConfig = openAIConfig;
         this.restTemplate = restTemplate;
+        this.historyService = historyService;
     }
 
     // Detecta idioma simples (PT/EN) - fallback
@@ -43,10 +46,9 @@ public class ChatService {
         if (lower.contains("hello") || lower.contains("hi") || lower.contains("how are")) {
             return "en";
         }
-        return "en"; // fallback
+        return "en";
     }
 
-    // Retorna emojis aleatórios
     private String getRandomEmojis(int count) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < count; i++) {
@@ -57,59 +59,77 @@ public class ChatService {
     }
 
     /**
-     * Retorna resposta do chatbot.
-     * @param userMessage mensagem do usuário
-     * @param language idioma escolhido pelo front (pt/en). Se null ou inválido, fallback automático
+     * Retorna resposta do chatbot e salva no histórico
+     * Implementa retry com backoff exponencial em caso de rate limit (429)
      */
-    public String getChatbotResponse(String userMessage, String language) {
-        try {
-            // fallback para detecção automática
-            if (language == null || (!language.equalsIgnoreCase("pt") && !language.equalsIgnoreCase("en"))) {
-                language = detectLanguage(userMessage);
-            }
+    public String getChatbotResponse(User user, String userMessage, String language, String sessionName) {
+        int maxRetries = 5;         // número máximo de tentativas
+        int retryCount = 0;
+        long baseWaitTime = 5000;   // tempo inicial de espera em ms (5s)
 
-            String systemPrompt = "You're a sarcastic, fun, and intelligent chatbot with a healthy sense of humor. " +
-            "Always respond playfully and slightly mockingly, without being offensive." +
-                    "Respond in the user's language: " + language + ". " +
-                    "Add 2-4 funny emojis at the end of your reply.";
+        if (language == null || (!language.equalsIgnoreCase("pt") && !language.equalsIgnoreCase("en"))) {
+            language = detectLanguage(userMessage);
+        }
 
-            // Corpo da requisição
-            Map<String, Object> requestBody = new HashMap<>();
-            requestBody.put("model", openAIConfig.getModel());
-            requestBody.put("temperature", openAIConfig.getTemperature());
-            requestBody.put("messages", List.of(
-                    Map.of("role", "system", "content", systemPrompt),
-                    Map.of("role", "user", "content", userMessage)
-            ));
+        String systemPrompt = "You're a sarcastic, fun, and intelligent chatbot with a healthy sense of humor. " +
+                "Always respond playfully and slightly mockingly, without being offensive. " +
+                "Respond in the user's language: " + language + ". " +
+                "Add 2-4 funny emojis at the end of your reply.";
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.setBearerAuth(openAIConfig.getOpenAiApiKey());
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", openAIConfig.getModel());
+        requestBody.put("temperature", openAIConfig.getTemperature());
+        requestBody.put("messages", List.of(
+                Map.of("role", "system", "content", systemPrompt),
+                Map.of("role", "user", "content", userMessage)
+        ));
 
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(openAIConfig.getOpenAiApiKey());
 
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    openAIConfig.getOpenAiApiUrl(),
-                    HttpMethod.POST,
-                    request,
-                    Map.class
-            );
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 
-            Map<String, Object> responseBody = response.getBody();
-            if (responseBody != null && responseBody.containsKey("choices")) {
-                List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
-                if (!choices.isEmpty()) {
-                    Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-                    String chatbotReply = (String) message.get("content");
+        while (true) {
+            try {
+                ResponseEntity<Map> response = restTemplate.exchange(
+                        openAIConfig.getOpenAiApiUrl(),
+                        HttpMethod.POST,
+                        request,
+                        Map.class
+                );
 
-                    return chatbotReply + " " + getRandomEmojis(3);
+                String chatbotReply = "🤖 I'm speechless...";
+                Map<String, Object> responseBody = response.getBody();
+                if (responseBody != null && responseBody.containsKey("choices")) {
+                    List<Map<String, Object>> choices = (List<Map<String, Object>>) responseBody.get("choices");
+                    if (!choices.isEmpty()) {
+                        Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+                        chatbotReply = (String) message.get("content");
+                    }
                 }
-            }
 
-            return "🤖 Estou sem palavras... literalmente!";
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "⚠️ Oops! Algo deu errado com o chatbot.";
+                String finalReply = chatbotReply + " " + getRandomEmojis(3);
+                historyService.saveMessage(user, sessionName, userMessage, finalReply, language);
+                return finalReply;
+
+            } catch (HttpClientErrorException.TooManyRequests e) {
+                retryCount++;
+                if (retryCount > maxRetries) {
+                    return "⚠️ Server is overloaded. Please try again in a few seconds.";
+                }
+                long waitTime = baseWaitTime * (1L << (retryCount - 1)); // backoff exponencial
+                System.out.println("API rate limit reached . Retry #" + retryCount + " in " + (waitTime / 1000) + "s...");
+                try {
+                    Thread.sleep(waitTime);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return "⚠️ An unexpected error has occurred.";
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                return "⚠️ Oops! Something went wrong with the chatbot.";
+            }
         }
     }
 }
