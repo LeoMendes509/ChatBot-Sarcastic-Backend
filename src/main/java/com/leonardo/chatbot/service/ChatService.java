@@ -2,12 +2,14 @@ package com.leonardo.chatbot.service;
 
 import com.leonardo.chatbot.config.OpenAIConfig;
 import com.leonardo.chatbot.model.User;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -37,36 +39,32 @@ public class ChatService {
         this.historyService = historyService;
     }
 
-    // Detecta idioma simples (PT/EN) - fallback
-    private String detectLanguage(String userMessage) {
-        String lower = userMessage.toLowerCase();
+    // 🔹 Detecta idioma simples (PT/EN)
+    private String detectLanguage(String message) {
+        String lower = message.toLowerCase();
         if (lower.matches(".*[ãõçáéíóúàêô].*") || lower.contains("oi") || lower.contains("olá")) {
             return "pt";
         }
         if (lower.contains("hello") || lower.contains("hi") || lower.contains("how are")) {
             return "en";
         }
-        return "en";
+        return "en"; // fallback
     }
 
+    // 🔹 Retorna emojis aleatórios
     private String getRandomEmojis(int count) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            int idx = random.nextInt(EMOJIS.length);
-            sb.append(EMOJIS[idx]).append(" ");
+            sb.append(EMOJIS[random.nextInt(EMOJIS.length)]).append(" ");
         }
         return sb.toString().trim();
     }
 
     /**
-     * Retorna resposta do chatbot e salva no histórico
-     * Implementa retry com backoff exponencial em caso de rate limit (429)
+     * 🔹 Gera resposta do chatbot, salva no histórico e aplica retry em caso de rate limit.
      */
+    @Transactional
     public String getChatbotResponse(User user, String userMessage, String language, String sessionName) {
-        int maxRetries = 5;         // número máximo de tentativas
-        int retryCount = 0;
-        long baseWaitTime = 5000;   // tempo inicial de espera em ms (5s)
-
         if (language == null || (!language.equalsIgnoreCase("pt") && !language.equalsIgnoreCase("en"))) {
             language = detectLanguage(userMessage);
         }
@@ -90,6 +88,10 @@ public class ChatService {
 
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 
+        int maxRetries = 5;
+        int retryCount = 0;
+        long baseWaitTime = 5000;
+
         while (true) {
             try {
                 ResponseEntity<Map> response = restTemplate.exchange(
@@ -109,23 +111,23 @@ public class ChatService {
                     }
                 }
 
+                // 🔹 Adiciona emojis
                 String finalReply = chatbotReply + " " + getRandomEmojis(3);
+
+                // 🔹 Salva no histórico
                 historyService.saveMessage(user, sessionName, userMessage, finalReply, language);
+
                 return finalReply;
 
             } catch (HttpClientErrorException.TooManyRequests e) {
                 retryCount++;
                 if (retryCount > maxRetries) {
-                    return "⚠️ Server is overloaded. Please try again in a few seconds.";
+                    return "⚠️ Server overloaded. Please try again later.";
                 }
-                long waitTime = baseWaitTime * (1L << (retryCount - 1)); // backoff exponencial
-                System.out.println("API rate limit reached . Retry #" + retryCount + " in " + (waitTime / 1000) + "s...");
-                try {
-                    Thread.sleep(waitTime);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    return "⚠️ An unexpected error has occurred.";
-                }
+                long waitTime = baseWaitTime * (1L << (retryCount - 1));
+                System.out.println("Rate limit hit. Retry #" + retryCount + " in " + (waitTime / 1000) + "s...");
+                try { Thread.sleep(waitTime); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); return "⚠️ Unexpected error."; }
+
             } catch (Exception e) {
                 e.printStackTrace();
                 return "⚠️ Oops! Something went wrong with the chatbot.";

@@ -28,6 +28,7 @@ public class Question {
         this.dateTime = dateTime;
     }
 
+    // Getters e Setters
     public long getId() {
         return id;
     }
@@ -35,7 +36,6 @@ public class Question {
     public String getText() {
         return text;
     }
-
     public void setText(String text) {
         this.text = text;
     }
@@ -43,13 +43,13 @@ public class Question {
     public LocalDateTime getDateTime() {
         return dateTime;
     }
-
     public void setDateTime(LocalDateTime dateTime) {
         this.dateTime = dateTime;
     }
 
-    public User getUser() { return user; }
-
+    public User getUser() {
+        return user;
+    }
     public void setUser(User user) {
         this.user = user;
     }

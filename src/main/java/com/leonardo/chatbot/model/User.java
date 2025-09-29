@@ -2,7 +2,6 @@ package com.leonardo.chatbot.model;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -36,15 +35,31 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Question> questions;
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ChatHistory> chatHistories;
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public List<ChatHistory> getChatHistories() {
+        return chatHistories;
+    }
+
+    public void setChatHistories(List<ChatHistory> chatHistories) {
+        this.chatHistories = chatHistories;
+    }
+
     @Column(name = "email_verified")
-    private boolean emailVerified = true; // já deixa como verificado
+    private boolean emailVerified = true;
 
     @Column(name = "email_verification_token", length = 255)
     private String emailVerificationToken;
 
     // Getters e Setters
-    public Long getId() { return id; }
-
+    public Long getId() {
+        return id;
+    }
     public void setId(Long id) {
         this.id = id;
     }
@@ -52,7 +67,6 @@ public class User {
     public String getName() {
         return name;
     }
-
     public void setName(String name) {
         this.name = name;
     }
@@ -60,7 +74,6 @@ public class User {
     public Integer getAge() {
         return age;
     }
-
     public void setAge(Integer age) {
         this.age = age;
     }
@@ -68,7 +81,6 @@ public class User {
     public String getUsername() {
         return username;
     }
-
     public void setUsername(String username) {
         this.username = username;
     }
@@ -76,7 +88,6 @@ public class User {
     public String getEmail() {
         return email;
     }
-
     public void setEmail(String email) {
         this.email = email;
     }
@@ -84,7 +95,6 @@ public class User {
     public String getPasswordHash() {
         return passwordHash;
     }
-
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
     }
@@ -93,12 +103,16 @@ public class User {
         return createdAt;
     }
 
-    public List<Question> getQuestions() { return questions; }
+    public List<Question> getQuestions() {
+        return questions;
+    }
     public void setQuestions(List<Question> questions) {
         this.questions = questions;
     }
 
-    public boolean isEmailVerified() { return emailVerified; }
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
     public void setEmailVerified(boolean emailVerified) {
         this.emailVerified = emailVerified;
     }
@@ -106,9 +120,7 @@ public class User {
     public String getEmailVerificationToken() {
         return emailVerificationToken;
     }
-
     public void setEmailVerificationToken(String emailVerificationToken) {
         this.emailVerificationToken = emailVerificationToken;
     }
 }
-

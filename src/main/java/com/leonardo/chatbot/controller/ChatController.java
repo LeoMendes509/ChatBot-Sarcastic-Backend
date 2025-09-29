@@ -1,19 +1,15 @@
 package com.leonardo.chatbot.controller;
 
-import com.leonardo.chatbot.dto.ChatRequest;
-import com.leonardo.chatbot.dto.ChatResponse;
 import com.leonardo.chatbot.dto.ChatHistoryDTO;
 import com.leonardo.chatbot.model.User;
-import com.leonardo.chatbot.security.SecurityJWT;
-import com.leonardo.chatbot.service.ChatService;
 import com.leonardo.chatbot.service.ChatHistoryService;
+import com.leonardo.chatbot.service.ChatService;
 import com.leonardo.chatbot.service.UserService;
-import org.springframework.http.HttpStatus;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -21,135 +17,72 @@ public class ChatController {
 
     private final ChatService chatService;
     private final UserService userService;
-    private final SecurityJWT securityJWT;
-    private final ChatHistoryService chatHistoryService;
+    private final ChatHistoryService historyService;
 
-    public ChatController(ChatService chatService,
-                          UserService userService,
-                          SecurityJWT securityJWT,
-                          ChatHistoryService chatHistoryService) {
+    public ChatController(ChatService chatService, UserService userService, ChatHistoryService historyService) {
         this.chatService = chatService;
         this.userService = userService;
-        this.securityJWT = securityJWT;
-        this.chatHistoryService = chatHistoryService;
+        this.historyService = historyService;
     }
 
-    // 🔹 Envia mensagem para o bot e salva no histórico de sessão
+    // 🔹 Enviar mensagem para o chatbot e receber resposta
     @PostMapping("/send")
-    public ResponseEntity<?> sendMessage(@RequestBody ChatRequest chatRequest,
-                                         @RequestHeader("Authorization") String authHeader,
-                                         @RequestParam(required = false) String sessionName) {
+    public ResponseEntity<?> sendMessage(HttpServletRequest request,
+                                         @RequestParam String sessionName,
+                                         @RequestParam(required = false) String language,
+                                         @RequestBody String message) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String username = securityJWT.getUsernameFromToken(token);
+            String token = request.getHeader("Authorization").substring(7);
+            User user = userService.getUserFromToken(token);
 
-            Optional<User> userOpt = userService.getUserByUserName(username);
-            if (userOpt.isEmpty() || !userOpt.get().isEmailVerified()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("Email not verified. Confirm your email to access the chat.");
-            }
-
-            User user = userOpt.get();
-
-            String language = chatRequest.getLanguage();
-            if (language == null || (!language.equals("pt") && !language.equals("en"))) {
-                language = "en";
-            }
-
-            if (sessionName == null || sessionName.isBlank()) {
-                sessionName = "New Chat";
-            }
-
-            String botResponse = chatService.getChatbotResponse(user, chatRequest.getMessage(), language, sessionName);
-
-            return ResponseEntity.ok(new ChatResponse(botResponse));
-
+            String response = chatService.getChatbotResponse(user, message, language, sessionName);
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Invalid or expired token.");
+            return ResponseEntity.status(401).body("⚠️ " + e.getMessage());
         }
     }
 
-    // 🔹 Retorna as sessões recentes do usuário (últimas 48h)
-    @GetMapping("/sessions")
-    public ResponseEntity<?> getRecentSessions(@RequestHeader("Authorization") String authHeader) {
+    // 🔹 Recuperar histórico de uma sessão (últimas 48h)
+    @GetMapping("/history")
+    public ResponseEntity<?> getHistory(HttpServletRequest request,
+                                        @RequestParam String sessionName) {
         try {
-            String token = authHeader.replace("Bearer ", "");
-            String username = securityJWT.getUsernameFromToken(token);
+            String token = request.getHeader("Authorization").substring(7);
+            User user = userService.getUserFromToken(token);
 
-            Optional<User> userOpt = userService.getUserByUserName(username);
-            if (userOpt.isEmpty() || !userOpt.get().isEmailVerified()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("Email not verified.");
-            }
-
-            User user = userOpt.get();
-            List<String> sessions = chatHistoryService.getRecentSessions(user);
-
-            return ResponseEntity.ok(sessions);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Invalid or expired token.");
-        }
-    }
-
-    // 🔹 Retorna o histórico completo de uma sessão
-    @GetMapping("/session/history")
-    public ResponseEntity<?> getSessionHistory(@RequestHeader("Authorization") String authHeader,
-                                               @RequestParam String sessionName) {
-        try {
-            String token = authHeader.replace("Bearer ", "");
-            String username = securityJWT.getUsernameFromToken(token);
-
-            Optional<User> userOpt = userService.getUserByUserName(username);
-            if (userOpt.isEmpty() || !userOpt.get().isEmailVerified()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body("Email not verified.");
-            }
-
-            User user = userOpt.get();
-            List<ChatHistoryDTO> history = chatHistoryService.getHistoryBySession(user, sessionName);
-
+            List<ChatHistoryDTO> history = historyService.getHistoryBySession(user, sessionName);
             return ResponseEntity.ok(history);
-
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Invalid or expired token.");
+            return ResponseEntity.status(401).body("⚠️ " + e.getMessage());
         }
     }
 
-    // 🔹 Apaga uma sessão específica
-    @DeleteMapping("/session/{sessionName}")
-    public ResponseEntity<?> deleteChatSession(@RequestHeader("Authorization") String authHeader,
-                                               @PathVariable String sessionName) {
+    // 🔹 Deletar sessão específica
+    @DeleteMapping("/session")
+    public ResponseEntity<?> deleteSession(HttpServletRequest request,
+                                           @RequestParam String sessionName) {
         try {
-            String token = authHeader.replace("Bearer ", "");
+            String token = request.getHeader("Authorization").substring(7);
             User user = userService.getUserFromToken(token);
 
-            chatHistoryService.deleteSession(user, sessionName);
-            return ResponseEntity.ok("✅ Chat session '" + sessionName + "' deleted successfully!");
-
+            historyService.deleteSession(user, sessionName);
+            return ResponseEntity.ok("✅ Session '" + sessionName + "' successfully deleted !");
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Invalid or expired token.");
+            return ResponseEntity.status(401).body("⚠️ " + e.getMessage());
         }
     }
 
-    // 🔹 Apaga todas as sessões do usuário
-    @DeleteMapping("/all")
-    public ResponseEntity<?> deleteAllChats(@RequestHeader("Authorization") String authHeader) {
+    // 🔹 Deletar todas as sessões do usuário
+    @DeleteMapping("/sessions")
+    public ResponseEntity<?> deleteAllSessions(HttpServletRequest request) {
         try {
-            String token = authHeader.replace("Bearer ", "");
+            String token = request.getHeader("Authorization").substring(7);
             User user = userService.getUserFromToken(token);
 
-            chatHistoryService.deleteAllSessions(user);
-            return ResponseEntity.ok("✅ All chat sessions deleted successfully!");
-
+            historyService.deleteAllSessions(user);
+            return ResponseEntity.ok("✅ All sessions deleted successfully !");
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Invalid or expired token.");
+            return ResponseEntity.status(401).body("⚠️ " + e.getMessage());
         }
     }
 }
-

@@ -37,19 +37,20 @@ public class SecurityConfig {
     // 🔹 Configuração de segurança da aplicação
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable()) // 🔹 Desativa CSRF para Postman e APIs
+        http.csrf(csrf -> csrf.disable()) // 🔹 Desativa CSRF (necessário para APIs/Postman)
                 .authorizeHttpRequests(auth -> auth
                         // 🔹 Endpoints públicos
-                        .requestMatchers("/api/users/register", "/api/users/login").permitAll()
-                        // 🔹 Todos os outros endpoints exigem autenticação
+                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        // 🔹 Todos os outros exigem autenticação
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // 🔹 Stateless JWT
                 .formLogin(form -> form.disable())
                 .httpBasic(httpBasic -> httpBasic.disable());
 
-        // 🔹 Adiciona filtro JWT antes do filtro padrão de autenticação
+        // 🔹 Adiciona filtro JWT antes do UsernamePasswordAuthenticationFilter
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 }

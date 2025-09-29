@@ -20,7 +20,7 @@ public class ChatHistoryService {
         this.historyRepository = historyRepository;
     }
 
-    // 🔹 Salva mensagem na sessão
+    // 🔹 Salva mensagem no histórico
     public ChatHistory saveMessage(User user, String sessionName, String message, String response, String language) {
         ChatHistory history = new ChatHistory();
         history.setUser(user);
@@ -32,7 +32,7 @@ public class ChatHistoryService {
         return historyRepository.save(history);
     }
 
-    // 🔹 Retorna histórico completo de uma sessão (últimas 48h)
+    // 🔹 Retorna histórico de uma sessão (últimas 48h)
     public List<ChatHistoryDTO> getHistoryBySession(User user, String sessionName) {
         LocalDateTime cutoff = LocalDateTime.now().minusHours(48);
         return historyRepository.findByUserAndSessionNameAndTimestampAfter(user, sessionName, cutoff)
@@ -57,15 +57,16 @@ public class ChatHistoryService {
                 .toList();
     }
 
-    // 🔹 Deleta uma sessão específica do usuário
+    // 🔹 Deleta sessão específica
     @Transactional
     public void deleteSession(User user, String sessionName) {
         historyRepository.deleteByUserAndSessionName(user, sessionName);
     }
 
-    // 🔹 Deleta todas as sessões do usuário
+    // 🔹 Deleta todas as sessões
     @Transactional
     public void deleteAllSessions(User user) {
         historyRepository.deleteByUser(user);
     }
 }
+
