@@ -4,6 +4,11 @@ import com.leonardo.chatbot.dto.LoginRequestDTO;
 import com.leonardo.chatbot.dto.RegisterRequestDTO;
 import com.leonardo.chatbot.model.User;
 import com.leonardo.chatbot.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +18,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = "Auth" , description = "Authentication endpoints : register and login .")
 public class AuthController {
 
     private final UserService userService;
@@ -23,6 +29,20 @@ public class AuthController {
 
     // 🔹 Registro
     @PostMapping("/register")
+    @Operation(
+            summary = "Register user",
+            description = "Creates a new user with username , password , name , email and age .",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "DTO containing username , password , name , email and age .",
+                    required = true,
+                    content = @Content(
+                            schema = @Schema(implementation = RegisterRequestDTO.class),
+                            examples = @ExampleObject(value = "{ \"username\" : \"leo\" , \"password\" : \"123456\" , " +
+                                    "\"name\" : , \"Leonardo\", \"email\" : \"leonardo@email.com\" , \"age\" : 24 }")
+                    )
+            )
+    )
+
     public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequestDTO request) {
         try {
             User user = new User();
@@ -48,6 +68,19 @@ public class AuthController {
 
     // 🔹 Login
     @PostMapping("/login")
+    @Operation(
+            summary = "User login",
+            description = "Authenticates a user and returns a JWT token",
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "DTO containing username and password" ,
+                    required = true,
+                    content = @Content(
+                            schema = @Schema(implementation = LoginRequestDTO.class),
+                            examples = @ExampleObject(value = "{ \"username\": \"leo\", \"password\": \"123456\" }")
+                    )
+                    )
+            )
+
     public ResponseEntity<?> loginUser(@Valid @RequestBody LoginRequestDTO request) {
         try {
             String token = userService.login(request.getUsername(), request.getPassword());

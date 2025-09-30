@@ -39,8 +39,14 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable()) // 🔹 Desativa CSRF (necessário para APIs/Postman)
                 .authorizeHttpRequests(auth -> auth
-                        // 🔹 Endpoints públicos
-                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        // 🔹 Endpoints públicos de autenticação
+                        .requestMatchers(
+                                "/api/auth/register",
+                                "/api/auth/login",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
                         // 🔹 Todos os outros exigem autenticação
                         .anyRequest().authenticated()
                 )
