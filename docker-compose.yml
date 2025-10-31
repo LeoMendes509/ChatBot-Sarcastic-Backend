@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  mysql-db:
+    image: mysql:8.0
+    container_name: chatbot-mysql
+    restart: always
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}  # senha do root
+      MYSQL_DATABASE: ${MYSQL_DATABASE}            # banco que vamos criar
+      MYSQL_USER: ${MYSQL_USER}                    # usuário da aplicação
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}            # senha do usuário
+    ports:
+      - "3307:3306"                                # 3307 no Windows mapeia 3306 do container
+    volumes:
+      - mysql_data:/var/lib/mysql                   # persistência de dados
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      retries: 5
+
+  backend:
+    build: .
+    container_name: chatbot-backend
+    restart: always
+    ports:
+      - "8081:8081"
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    env_file:
+      - .env
+
+volumes:
+  mysql_data:

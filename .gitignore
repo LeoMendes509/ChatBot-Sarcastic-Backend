@@ -1,6 +1,9 @@
 # Ignorar arquivo com dados do banco
 src/main/resources/application.properties
 
+# Ignorar variáveis sensíveis
+.env
+
 HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar
