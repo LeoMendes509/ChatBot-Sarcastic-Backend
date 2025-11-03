@@ -8,14 +8,14 @@ services:
     env_file:
       - .env
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}  # senha do root
-      MYSQL_DATABASE: ${MYSQL_DATABASE}            # banco que vamos criar
-      MYSQL_USER: ${MYSQL_USER}                    # usuário da aplicação
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}            # senha do usuário
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-      - "3307:3306"                                # 3307 no Windows mapeia 3306 do container
+      - "3307:3306"
     volumes:
-      - mysql_data:/var/lib/mysql                   # persistência de dados
+      - mysql_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -33,5 +33,22 @@ services:
     env_file:
       - .env
 
+  frontend:
+    build:
+      context: ../Front_End-ChatBot-Sarcastic    # caminho até a pasta do front-end
+      dockerfile: Dockerfile                     # o nome do Dockerfile do front
+    container_name: chatbot-frontend
+    restart: always
+    ports:
+      - "5173:80"                                # 80 é o Nginx, 5173 é o acesso local
+    depends_on:
+      - backend                                  # sobe depois que o backend estiver pronto
+    networks:
+      - chatbot-network                          # mesma rede para comunicação direta
+
 volumes:
   mysql_data:
+
+networks:
+  chatbot-network:
+    driver: bridge
